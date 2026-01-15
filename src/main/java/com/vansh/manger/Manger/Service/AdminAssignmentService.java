@@ -92,11 +92,23 @@ public class AdminAssignmentService {
            Teacher teacher = teacherRespository.findById(teacherId)
                    .orElseThrow(() -> new EntityNotFoundException("Teacher not found with this ID: " + teacherId));
 
+           if(!teacher.isActive()) {
+               throw new IllegalStateException("Teacher with inactive status cannot assigned.");
+           }
            assignment.setTeacher(teacher);
 
            TeacherAssignment savedAssignment = teacherAssignmentRepository.save(assignment);
            activityLogService.logActivity("Teacher: " + teacher.getFirstName() + " " + teacher.getLastName() + " assigned to the Subject: " + savedAssignment.getSubject().getName() + " in Classroom: " + savedAssignment.getClassroom().getName(), "Assignment Management");
            return mapToResponse(savedAssignment);
+    }
+
+    @Transactional
+    public AssignmentResponseDTO unassignedTeacher(Long assignmentId) {
+
+           TeacherAssignment existedAssignment = teacherAssignmentRepository.findById(assignmentId).orElseThrow(() -> new EntityNotFoundException("assingment not found with this id."));
+
+           existedAssignment.setTeacher(null);
+           return mapToResponse(existedAssignment);
     }
 
     @Transactional

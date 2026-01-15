@@ -21,6 +21,7 @@ public interface TeacherAssignmentRepository extends JpaRepository<TeacherAssign
     boolean existsByTeacherAndClassroom(Teacher teacher, Classroom classroom);
 
     boolean existsByClassroomAndSubject(Classroom classroom, Subject subject);
+    boolean existsByTeacher(Teacher teacher);
 
     void deleteByTeacher(Teacher teacher);
 

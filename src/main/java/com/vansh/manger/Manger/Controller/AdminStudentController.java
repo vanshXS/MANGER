@@ -53,7 +53,7 @@ public class AdminStudentController {
     public ResponseEntity<Page<StudentResponseDTO>> getAllStudents(
             @PageableDefault(size = 10, sort = "lastName") Pageable pageable
     ) {
-        // This response is SECURE and does NOT contain passwords
+
         return ResponseEntity.ok(adminStudentService.getAllStudents(pageable));
     }
 

@@ -32,6 +32,7 @@ public class EmailService {
                         "Regards,\n" +
                         "Your School Administration"
         );
+
         mailSender.send(message);
     }
 

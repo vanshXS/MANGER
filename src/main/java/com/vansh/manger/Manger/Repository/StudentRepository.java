@@ -24,10 +24,6 @@ public interface StudentRepository extends JpaRepository<Student, Long>, JpaSpec
 
     Optional<Student>findByEmail(String email);
 
-
-
-
-
     Page<Student> findAll(Pageable pageable);
 
 

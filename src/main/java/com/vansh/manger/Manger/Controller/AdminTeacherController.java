@@ -45,8 +45,16 @@ public class AdminTeacherController {
     public ResponseEntity<?> getTeacherById(@PathVariable Long teacherId) {
 
        return ResponseEntity.ok(adminTeacherService.getTeacherById(teacherId));
+   }
 
-
+   @PatchMapping("/{teacherId}/status")
+   public ResponseEntity<Void> toggleActiveState(
+           @PathVariable Long teacherId,
+           @RequestParam boolean active
+   ) {
+       System.out.println("It is executed");
+       adminTeacherService.toggleStatus(teacherId, active);
+       return ResponseEntity.ok().build();
    }
 
     @PutMapping(value = "/{teacherId:\\d+}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

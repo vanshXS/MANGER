@@ -168,6 +168,30 @@ public class AdminTeacherService {
         return mapToResponseWithAssignments(teacher);
     }
 
+    //----------------TOGGLE STATUS-----------------
+
+    public void toggleStatus(Long teacherId, boolean active) {
+        Teacher teacher = teacherRespository.findById(teacherId)
+                .orElseThrow(() -> new EntityNotFoundException("Teacher not found"));
+
+
+
+        if(teacherAssignmentRepository.existsByTeacher(teacher)) {
+            throw new IllegalStateException("Assigned Teacher cannot be deactive");
+        }
+
+
+         teacher.setActive(active);
+         teacherRespository.save(teacher);
+
+        activityLogService.logActivity(
+                "Teacher " + teacher.getFirstName() + " " + teacher.getLastName() +
+                        (active ? " activated" : " deactivated"),
+                "Teacher Status Update"
+        );
+
+    }
+
     // ---------------- DELETE TEACHER ----------------
     @Transactional
     public void delete(Long teacherId) {
@@ -175,9 +199,12 @@ public class AdminTeacherService {
         Teacher teacher = teacherRespository.findById(teacherId)
                 .orElseThrow(() -> new EntityNotFoundException("Teacher not found"));
 
-        teacherAssignmentRepository.deleteByTeacher(teacher);
+       if(teacher.isActive()) {
+           throw new IllegalStateException("Teacher status is active. Cannot deleted..");
+       }else {
+           teacherRespository.delete(teacher);
+       }
 
-        teacherRespository.delete(teacher);
 
 
         activityLogService.logActivity(

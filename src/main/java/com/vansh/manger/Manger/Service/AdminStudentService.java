@@ -260,13 +260,14 @@ public class AdminStudentService {
             // --- This is a TRANSFER ---
             Enrollment existingEnrollment = existingEnrollmentOpt.get();
             String oldClassroomName = existingEnrollment.getClassroom().getName();
+
                //new rollNO
             String newRollNo = generateNextRollNoForClass(newClassroom, currentYear);
             existingEnrollment.setClassroom(newClassroom);
             existingEnrollment.setRollNo(newRollNo);
             // Simply update the classroom
             enrollmentToSave = enrollmentRepository.save(existingEnrollment);
-
+            autoAssignMandatorySubjects(student, newClassroom);
             activityLogService.logActivity(
                     "Student " + student.getFirstName() + " transferred from " + oldClassroomName + " to " + newClassroom.getName(),
                     "Student Transfer"

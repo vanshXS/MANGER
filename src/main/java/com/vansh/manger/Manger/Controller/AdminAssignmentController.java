@@ -48,6 +48,13 @@ public class AdminAssignmentController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/{teacherId:\\d+}/teacher")
+    public ResponseEntity<AssignmentResponseDTO> removeTeacherFromAssignment(@PathVariable Long teacherId) {
+        AssignmentResponseDTO response = adminAssignmentService.unassignedTeacher(teacherId);
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{assignmentId:\\d+}/mandatory")
     public ResponseEntity<AssignmentResponseDTO> updateMandatory(
             @PathVariable Long assignmentId,

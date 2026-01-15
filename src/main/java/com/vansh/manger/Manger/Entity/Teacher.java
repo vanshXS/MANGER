@@ -36,6 +36,8 @@ public class Teacher {
 
     private String phone_number;
 
+    @Column(nullable = false)
+    private boolean active = true;
 
     @NotBlank(message = "Password is required")
 
@@ -43,7 +45,7 @@ public class Teacher {
 
     private String profilePictureUrl;
 
-    private boolean active = false;
+
 
     private LocalDate joiningDate;
 
