@@ -3,7 +3,6 @@ package com.vansh.manger.Manger.Entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,7 +12,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "teachers")
+@Table(name = "teachers" ,
+  indexes = {
+        @Index(name = "idx_teacher_active" , columnList = "active"),
+          @Index(name = "idx_teacher_email", columnList = "email"),
+          @Index(name = "idx_teacher_active_id", columnList = "active, id")
+  }
+
+
+)
 @Data
 @NoArgsConstructor @AllArgsConstructor
 @Builder
@@ -34,7 +41,8 @@ public class Teacher {
     private String email;
 
 
-    private String phone_number;
+    @Column(name = "phone_number")
+    private String phoneNumber;
 
     @Column(nullable = false)
     private boolean active = true;
@@ -45,9 +53,11 @@ public class Teacher {
 
     private String profilePictureUrl;
 
-
-
     private LocalDate joiningDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @Enumerated(EnumType.STRING)
     private Roles role;

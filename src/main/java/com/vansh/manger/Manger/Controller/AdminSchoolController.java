@@ -5,7 +5,6 @@ import com.vansh.manger.Manger.DTO.SchoolProfileDTO;
 import com.vansh.manger.Manger.Service.AdminSchoolService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.Response;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

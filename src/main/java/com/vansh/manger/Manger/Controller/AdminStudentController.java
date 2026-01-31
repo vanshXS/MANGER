@@ -4,15 +4,16 @@ import com.vansh.manger.Manger.DTO.StudentRequestDTO;
 import com.vansh.manger.Manger.DTO.StudentResponseDTO;
 import com.vansh.manger.Manger.DTO.SubjectResponseDTO;
 
+import com.vansh.manger.Manger.Entity.StudentStatus;
 import com.vansh.manger.Manger.Service.AdminStudentService;
 import com.vansh.manger.Manger.Service.AdminSubjectService;
 import com.vansh.manger.Manger.Service.PDFService;
-import jakarta.mail.Multipart;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -40,7 +41,6 @@ public class AdminStudentController {
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<StudentResponseDTO> createStudent(@ModelAttribute @Valid StudentRequestDTO studentRequestDTO, @RequestParam(value = "profilePicture", required = false)MultipartFile profilePic) throws IOException {
-        // This response DTO contains the one-time raw password for the admin
         studentRequestDTO.setProfilePicture(profilePic);
         StudentResponseDTO studentResponseDTO = adminStudentService.createStudent(studentRequestDTO);
         return new ResponseEntity<>(studentResponseDTO, HttpStatus.CREATED);
@@ -49,13 +49,17 @@ public class AdminStudentController {
     /**
      * Gets a paginated list of all students and their *current* enrollment status.
      */
-    @GetMapping
-    public ResponseEntity<Page<StudentResponseDTO>> getAllStudents(
-            @PageableDefault(size = 10, sort = "lastName") Pageable pageable
-    ) {
+   @GetMapping
+   public ResponseEntity<Page<StudentResponseDTO>> getAllStudents(
+           @RequestParam(required = false) StudentStatus status,
+           @RequestParam(required = false) String search,
+           @PageableDefault(size = 10, sort = "firstName", direction = Sort.Direction.ASC) Pageable pageable
+   ) {
 
-        return ResponseEntity.ok(adminStudentService.getAllStudents(pageable));
-    }
+       return ResponseEntity.ok(
+               adminStudentService.getAllStudents(status, search, pageable)
+       );
+   }
 
     /**
      * Gets a single student's profile by their permanent ID.
@@ -121,7 +125,7 @@ public class AdminStudentController {
     }
 
     /**
-     * Get all subjects by the classroom Id
+     * Get all subjects by the classroom id
      */
 
     @GetMapping("/{classroomId:\\d+}/subjects")
@@ -163,10 +167,27 @@ public class AdminStudentController {
                 .body(pdfBytes);
     }
 
+    /**
+     * Send an Email for reset password
+     */
 
     @PostMapping("/{studentId:\\d+}/send-password-reset")
     public ResponseEntity<String> sendPasswordResetEmail(@PathVariable Long studentId) {
         adminStudentService.sendPasswordReset(studentId);
         return ResponseEntity.ok("Password reset email sent successfully to the student.");
+    }
+
+    /**
+     * Update a status of student
+     */
+
+    @PatchMapping("/{studentId}/active")
+    public ResponseEntity<Void> changeStudentStatus(
+            @PathVariable Long studentId,
+            @RequestParam StudentStatus status
+            ) {
+        adminStudentService.updateStatus(studentId, status);
+
+        return ResponseEntity.ok().build();
     }
 }

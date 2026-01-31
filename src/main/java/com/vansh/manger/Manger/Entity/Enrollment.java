@@ -8,7 +8,14 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "enrollments",
-uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "academic_year_id"}))
+uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "academic_year_id"}) ,
+indexes = {
+        @Index(columnList = "status"),
+        @Index(columnList = "academic_year_id"),
+        @Index(columnList = "classroom_id"),
+        @Index(columnList = "student_id,academic_year_id")
+}
+)
 @Data
 @NoArgsConstructor @AllArgsConstructor
 @Builder
@@ -25,6 +32,9 @@ public class Enrollment {
     @JoinColumn(name = "student_id", nullable = false)
     private Student student;
 
+    @Enumerated(EnumType.STRING)
+    private StudentStatus status = StudentStatus.ACTIVE;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "classroom_id", nullable = false)
     private Classroom classroom;
@@ -32,4 +42,8 @@ public class Enrollment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "academic_year_id", nullable = false)
     private AcademicYear academicYear;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

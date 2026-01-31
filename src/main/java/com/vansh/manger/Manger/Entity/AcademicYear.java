@@ -7,10 +7,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Entity
-@Table(name = "academic_year")
+@Table(
+    name = "academic_year",
+    uniqueConstraints = @UniqueConstraint(columnNames = { "school_id", "name" }),
+    indexes = {
+        @Index(columnList = "school_id"),
+        @Index(columnList = "school_id, is_current"),
+        @Index(columnList = "school_id, closed")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -21,7 +28,7 @@ public class AcademicYear {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, length = 100)
     private String name;
 
     @Column(nullable = false)
@@ -30,9 +37,15 @@ public class AcademicYear {
     @Column(nullable = false)
     private LocalDate endDate;
 
-    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
-    private boolean isCurrent;
+    /** Only one academic year per school should be current at a time. */
+    @Column(name = "is_current", nullable = false)
+    private Boolean isCurrent = false;
 
-    @OneToMany(mappedBy = "academicYear", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Enrollment> enrollments;
+    /** When true, this year is closed and students can be promoted from it to the next. */
+    @Column(nullable = false)
+    private Boolean closed = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

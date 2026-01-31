@@ -3,14 +3,12 @@ package com.vansh.manger.Manger.Service;
 import com.vansh.manger.Manger.DTO.SubjectAssignmentDetailDTO;
 import com.vansh.manger.Manger.DTO.SubjectRequestDTO;
 import com.vansh.manger.Manger.DTO.SubjectResponseDTO;
-import com.vansh.manger.Manger.Entity.Classroom;
-import com.vansh.manger.Manger.Entity.Subject;
-import com.vansh.manger.Manger.Entity.Teacher;
-import com.vansh.manger.Manger.Entity.TeacherAssignment;
+import com.vansh.manger.Manger.Entity.*;
 import com.vansh.manger.Manger.Repository.ClassroomRespository;
 import com.vansh.manger.Manger.Repository.SubjectRepository;
 import com.vansh.manger.Manger.Repository.TeacherAssignmentRepository;
 import com.vansh.manger.Manger.Repository.TeacherRespository;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +27,7 @@ public class AdminSubjectService {
     private final TeacherRespository teacherRespository;
     private final TeacherAssignmentRepository teacherAssignmentRepository;
     private final ActivityLogService activityLogService;
-
+    private final AdminSchoolConfig adminSchoolConfig;
 
     //helper method to map entity to dto
     public SubjectResponseDTO mapToResponse(Subject subject) {
@@ -60,16 +58,19 @@ public class AdminSubjectService {
     @Transactional
       public SubjectResponseDTO createSubject(SubjectRequestDTO dto) {
 
-        if(subjectRepository.existsByNameIgnoreCase(dto.getName())) {
+
+
+        if(subjectRepository.existsByNameIgnoreCaseAndSchool_Id(dto.getName(), adminSchoolConfig.requireCurrentSchool().getId())) {
             throw new IllegalArgumentException("Subject name already exists: " + dto.getName());
         }
-        if(subjectRepository.existsByCodeIgnoreCase(dto.getCode())) {
+        if(subjectRepository.existsByCodeIgnoreCaseAndSchool_Id(dto.getCode(), adminSchoolConfig.requireCurrentSchool().getId())) {
             throw new IllegalArgumentException("Subject code already exists: " + dto.getCode());
         }
 
         Subject subject = Subject.builder()
                 .name(dto.getName())
                 .code(dto.getCode())
+                .school(adminSchoolConfig.requireCurrentSchool())
                 .build();
 
 
@@ -80,7 +81,7 @@ public class AdminSubjectService {
     }
 
       public List<SubjectResponseDTO> getAllSubjects() {
-        return subjectRepository.findAll()
+        return subjectRepository.findBySchool_Id(adminSchoolConfig.requireCurrentSchool().getId())
                 .stream()
                 .map(this :: mapToResponse)
                 .collect(Collectors.toList());
@@ -89,8 +90,10 @@ public class AdminSubjectService {
 
     @Transactional
     public void deleteSubject(Long subjectId) {
-        Subject subject = subjectRepository.findById(subjectId)
-                .orElseThrow(() -> new EntityNotFoundException("Subject not found with id: " + subjectId));
+
+
+        Subject subject = subjectRepository.findByIdAndSchool_Id(subjectId, adminSchoolConfig.requireCurrentSchool().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Subject not found with id in the school: " + subjectId));
 
         // --- BUSINESS LOGIC CHECK ---
         if (teacherAssignmentRepository.existsBySubject(subject)) {
@@ -104,14 +107,17 @@ public class AdminSubjectService {
 
     @Transactional
     public SubjectResponseDTO updateSubject(Long subjectId, SubjectRequestDTO dto) {
-        Subject existingSubject = subjectRepository.findById(subjectId)
+
+
+
+        Subject existingSubject = subjectRepository.findByIdAndSchool_Id(subjectId, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Subject not found with id: " + subjectId));
 
         // Validate potential name/code conflicts ONLY if they have changed
-        if (!existingSubject.getName().equalsIgnoreCase(dto.getName()) && subjectRepository.existsByNameIgnoreCase(dto.getName())) {
+        if (!existingSubject.getName().equalsIgnoreCase(dto.getName()) && subjectRepository.existsByNameIgnoreCaseAndSchool_Id(dto.getName(), adminSchoolConfig.requireCurrentSchool().getId())) {
             throw new IllegalArgumentException("Another subject with this name already exists: " + dto.getName());
         }
-        if (!existingSubject.getCode().equalsIgnoreCase(dto.getCode()) && subjectRepository.existsByCodeIgnoreCase(dto.getCode())) {
+        if (!existingSubject.getCode().equalsIgnoreCase(dto.getCode()) && subjectRepository.existsByCodeIgnoreCaseAndSchool_Id(dto.getCode(), adminSchoolConfig.requireCurrentSchool().getId())) {
             throw new IllegalArgumentException("Another subject with this code already exists: " + dto.getCode());
         }
 

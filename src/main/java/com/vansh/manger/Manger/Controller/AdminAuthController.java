@@ -34,7 +34,7 @@ import java.time.LocalDateTime;
 public class AdminAuthController {
 
     private final UserRepo userRepo;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder; // used for change-password and reset-password
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
@@ -126,10 +126,10 @@ public class AdminAuthController {
             return ResponseEntity.badRequest().body("This is not admin account");
         }
 
-        if(!request.getOldPassword().equals(user.getPassword())) {
+        if(!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
             return ResponseEntity.badRequest().body("Password not matched");
         }
-        user.setPassword(request.getNewPassword());
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepo.save(user);
 
         return new ResponseEntity<>("Password Reset!", HttpStatus.ACCEPTED);

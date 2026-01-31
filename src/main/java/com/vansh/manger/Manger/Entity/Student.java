@@ -39,6 +39,11 @@ public class Student {
     private String profilePictureUrl;
 
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
+
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<StudentSubjectMarks> studentSubjects;
 

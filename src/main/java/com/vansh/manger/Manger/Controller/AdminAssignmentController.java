@@ -55,7 +55,7 @@ public class AdminAssignmentController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{assignmentId:\\d+}/mandatory")
+    @PatchMapping("/{assignmentId:\\d+}/mandatory")
     public ResponseEntity<AssignmentResponseDTO> updateMandatory(
             @PathVariable Long assignmentId,
             @RequestBody UpdateAssignmentMandatoryDTO dto

@@ -2,7 +2,9 @@ package com.vansh.manger.Manger.Service;
 
 import com.vansh.manger.Manger.DTO.AcademicYearDTO;
 import com.vansh.manger.Manger.Entity.AcademicYear;
+import com.vansh.manger.Manger.Entity.School;
 import com.vansh.manger.Manger.Repository.AcademicYearRepository;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -21,6 +23,7 @@ public class AdminAcademicYearService {
     private final AcademicYearRepository academicYearRepository;
     private final ActivityLogService activityLogService;
     private final EntityManager entityManager;
+    private final AdminSchoolConfig adminSchoolConfig;
 
     public AcademicYearDTO mapToResponse(AcademicYear academicYear) {
         return AcademicYearDTO.builder()
@@ -28,7 +31,8 @@ public class AdminAcademicYearService {
                 .name(academicYear.getName())
                 .startDate(academicYear.getStartDate())
                 .endDate(academicYear.getEndDate())
-                .isCurrent(academicYear.isCurrent())
+                .isCurrent(Boolean.TRUE.equals(academicYear.getIsCurrent()))
+                .closed(academicYear.getClosed())
                 .build();
     }
 
@@ -37,12 +41,21 @@ public class AdminAcademicYearService {
         if (dto.getStartDate().isAfter(dto.getEndDate())) {
             throw new IllegalArgumentException("Start date must be before end date.");
         }
-
+        String name = dto.getName() != null ? dto.getName().trim() : "";
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("Year name is required.");
+        }
+        Long schoolId = adminSchoolConfig.requireCurrentSchool().getId();
+        if (academicYearRepository.existsBySchool_IdAndName(schoolId, name)) {
+            throw new IllegalArgumentException("An academic year with name \"" + name + "\" already exists for this school.");
+        }
         AcademicYear newYear = AcademicYear.builder()
-                .name(dto.getName())
+                .name(name)
                 .startDate(dto.getStartDate())
                 .endDate(dto.getEndDate())
                 .isCurrent(false)
+                .closed(true)
+                .school(adminSchoolConfig.requireCurrentSchool())
                 .build();
 
         AcademicYear savedYear = academicYearRepository.save(newYear);
@@ -52,13 +65,13 @@ public class AdminAcademicYearService {
     }
 
     public List<AcademicYearDTO> getAllAcademicYears() {
-        List<AcademicYear> years = academicYearRepository.findAll();
-        log.info("Fetched {} academic years from database", years.size());
+        List<AcademicYear> years = academicYearRepository.findBySchool_IdOrderByStartDateDesc(
+                adminSchoolConfig.requireCurrentSchool().getId());
 
         return years.stream()
                 .map(year -> {
                     log.debug("Academic Year: id={}, name={}, isCurrent={}",
-                            year.getId(), year.getName(), year.isCurrent());
+                            year.getId(), year.getName(), year.getIsCurrent());
                     return mapToResponse(year);
                 })
                 .collect(Collectors.toList());
@@ -68,44 +81,39 @@ public class AdminAcademicYearService {
     public AcademicYearDTO setCurrentAcademicYear(Long yearId) {
 
         // Find the year to set as current
-        AcademicYear newCurrentYear = academicYearRepository.findById(yearId)
+        AcademicYear newCurrentYear = academicYearRepository.findByIdAndSchool_Id(yearId, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Academic year not found with id: " + yearId));
 
-
-
-        if (newCurrentYear.isCurrent()) {
+        if (newCurrentYear.getIsCurrent()) {
 
             return mapToResponse(newCurrentYear);
         }
 
         // Step 1: Unset ALL current years using bulk update
-        int updatedCount = academicYearRepository.unsetAllCurrentYears();
-
+        int updatedCount = academicYearRepository.unsetAllCurrentYearsBySchool(adminSchoolConfig.requireCurrentSchool().getId());
 
 
         entityManager.flush();
         entityManager.clear();
 
         // Step 2: Reload the year and set it as current
-        newCurrentYear = academicYearRepository.findById(yearId)
+        newCurrentYear = academicYearRepository.findByIdAndSchool_Id(yearId, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Academic year not found with id: " + yearId));
 
-        log.info("Setting academic year as current: id={}, name={}", newCurrentYear.getId(), newCurrentYear.getName());
-        newCurrentYear.setCurrent(true);
+        newCurrentYear.setIsCurrent(true);
 
         AcademicYear savedYear = academicYearRepository.saveAndFlush(newCurrentYear);
 
-        log.info("Saved academic year: id={}, name={}, isCurrent={}",
-                savedYear.getId(), savedYear.getName(), savedYear.isCurrent());
+
 
         // Step 3: Verify the change
         entityManager.clear(); // Clear cache again
-        AcademicYear verifiedYear = academicYearRepository.findById(yearId)
+        AcademicYear verifiedYear = academicYearRepository.findByIdAndSchool_Id(yearId, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Academic year not found after save"));
 
 
 
-        if (!verifiedYear.isCurrent()) {
+        if (!verifiedYear.getIsCurrent()) {
 
             throw new RuntimeException("Failed to set academic year as current");
         }
@@ -114,5 +122,25 @@ public class AdminAcademicYearService {
 
 
         return mapToResponse(verifiedYear);
+    }
+
+    @Transactional
+    public void closeAcademicYear() {
+        School school = adminSchoolConfig.requireCurrentSchool();
+
+        AcademicYear currentYear =
+                academicYearRepository.findByIsCurrentAndSchool_Id(true, school.getId())
+                        .orElseThrow(() -> new RuntimeException("No active academic year"));
+
+        currentYear.setClosed(true);
+        currentYear.setIsCurrent(false);
+
+        academicYearRepository.save(currentYear);
+
+        activityLogService.logActivity(
+                "Academic year closed: " +
+                        currentYear.getName(), "Academic Year"
+        );
+
     }
 }

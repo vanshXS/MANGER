@@ -30,6 +30,10 @@ public class ActivityLog {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
 
 
 

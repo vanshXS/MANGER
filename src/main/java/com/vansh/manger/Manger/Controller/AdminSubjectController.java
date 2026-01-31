@@ -6,10 +6,8 @@ import com.vansh.manger.Manger.Entity.Subject;
 import com.vansh.manger.Manger.Service.AdminSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.Response;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,7 +29,7 @@ public class AdminSubjectController {
         return ResponseEntity.ok(adminSubjectService.getAllSubjects());
     }
 
-    @DeleteMapping("/{subjectId: \\d+}")
+    @DeleteMapping("/{subjectId:\\d+}")
     public ResponseEntity<Void> deleteSubject(@PathVariable("subjectId") Long subjectId) {
         adminSubjectService.deleteSubject(subjectId);
         return ResponseEntity.noContent().build();

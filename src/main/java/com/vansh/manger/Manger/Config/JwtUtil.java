@@ -18,6 +18,7 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
+    // For HS256, use at least 256 bits (32 characters). Prefer env var: jwt.key
     @Value("${jwt.key}")
     private String SECRET_KEY;
 
@@ -27,7 +28,8 @@ public class JwtUtil {
     private final long refreshTokenValidity = 7 * 24 * 60 * 60 * 1000; // 7 days
 
     private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+        // Keys.hmacShaKeyFor() requires min 256 bits for HS256
+        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     // ================= Token Creation =================

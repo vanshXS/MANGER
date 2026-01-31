@@ -8,7 +8,7 @@
 		<version>3.5.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com..vansh.manger</groupId>
+	<groupId>com.vansh.manger</groupId>
 	<artifactId>Manger</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>Manger</name>
@@ -30,6 +30,24 @@
 		<java.version>24</java.version>
 	</properties>
 	<dependencies>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.11.0</version> <!-- latest stable -->
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.11.0</version>
+            <scope>test</scope>
+        </dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -77,6 +95,12 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>2.2.42</version>
+            <scope>compile</scope>
+        </dependency>
 		<dependency>
 			<groupId>org.modelmapper</groupId>
 			<artifactId>modelmapper</artifactId>
@@ -103,11 +127,17 @@
 			<version>0.11.5</version>
 			<scope>runtime</scope>
 		</dependency>
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
+<dependency>
+            <groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-jackson</artifactId> <!-- or jjwt-gson if you prefer -->
 			<version>0.11.5</version>
 			<scope>runtime</scope>
+		</dependency>
+		<!-- Swagger UI / OpenAPI 3 -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.6.0</version>
 		</dependency>
 	</dependencies>
 

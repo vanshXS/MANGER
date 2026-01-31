@@ -28,24 +28,24 @@ public class AdminTimeTable {
 
     }
 
-    @GetMapping("/teacher/{teacherId}")
+    @GetMapping("/teacher/{teacherId:\\d+}")
     public ResponseEntity<List<TimeTableResponseDTO>> getTimeTableByTeacherId(@PathVariable Long teacherId) {
 
         return ResponseEntity.ok(timeTableService.getByTeacherId(teacherId));
     }
 
-    @GetMapping("/classroom/{classroomId}")
+    @GetMapping("/classroom/{classroomId:\\d+}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ResponseEntity<List<TimeTableResponseDTO>> getTimeTableByClassroom(@PathVariable Long classroomId) {
         return ResponseEntity.ok(timeTableService.getByClassroomId(classroomId));
     }
 
-    @PutMapping("/{timeTableId}")
+    @PutMapping("/{timeTableId:\\d+}")
     public ResponseEntity<TimeTableResponseDTO> update(@PathVariable Long timeTableId, @Valid @RequestBody TimeTableRequestDTO dto) {
 
         return ResponseEntity.ok(timeTableService.updateTimeTable(timeTableId, dto));
     }
-    @DeleteMapping("/{timeTableId}")
+    @DeleteMapping("/{timeTableId:\\d+}")
     public void delete(@PathVariable Long timeTableId) {
 
         timeTableService.deleteTimeTable(timeTableId);

@@ -6,7 +6,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.validator.constraints.CodePointLength;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -72,7 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
-                System.out.println("Authenticated user: " + username + " Authorities: " + authorities);
+
             }
         }
 

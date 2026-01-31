@@ -35,12 +35,19 @@ public class AdminAcademicYearController {
 
     /**
      * Sets a specific academic year as the "current" one.
-     * This is the key endpoint that fixes your dashboard error.
      */
     @PutMapping("/{yearId:\\d+}/set-current")
     public ResponseEntity<AcademicYearDTO> setCurrentAcademicYear(@PathVariable Long yearId) {
         return ResponseEntity.ok(academicYearService.setCurrentAcademicYear(yearId));
     }
 
-
+    /**
+     * Closes the current academic year (sets closed=true, isCurrent=false).
+     * Required before promoting students from that year to the next.
+     */
+    @PostMapping("/close-current")
+    public ResponseEntity<Void> closeCurrentAcademicYear() {
+        academicYearService.closeAcademicYear();
+        return ResponseEntity.ok().build();
+    }
 }

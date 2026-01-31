@@ -65,7 +65,7 @@ public class SchoolService {
                 .build();
         userRepo.save(admin);
 
-        activityLogService.logActivity(
+        activityLogService.logActivityForSchool( savedSchool, 
                 "New school registered: " + savedSchool.getName(),
                 "Onboarding"
         );

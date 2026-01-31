@@ -8,6 +8,8 @@ import com.vansh.manger.Manger.Entity.Student;
 import com.vansh.manger.Manger.Entity.Teacher;
 import com.vansh.manger.Manger.Repository.*; // --- IMPORT ALL ---
 import com.vansh.manger.Manger.Specification.SearchSpecification;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
+
 import jakarta.persistence.EntityNotFoundException; // --- NEW IMPORT ---
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +27,7 @@ public class SearchService {
     private final StudentRepository studentRepository;
     private final TeacherRespository teacherRespository;
     private final ClassroomRespository classroomRespository;
+    private final AdminSchoolConfig getCurrentSchool;
 
     // --- NEWLY REQUIRED REPOSITORIES ---
     private final EnrollmentRepository enrollmentRepository;
@@ -53,14 +56,14 @@ public class SearchService {
                 .collect(Collectors.toList());
 
         // --- REFACTORED CLASSROOM SEARCH ---
-        AcademicYear currentYear = academicYearRepository.findByIsCurrent(true).orElse(null);
+        AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId()).orElse(null);
         Specification<Classroom> classroomSpec = SearchSpecification.classroomNameLike(query);
         List<SearchResultDTO> classrooms = classroomRespository.findAll(classroomSpec, pageRequest).getContent()
                 .stream()
                 .map(c -> {
                     // Get the current student count
                     long studentCount = (currentYear != null)
-                            ? enrollmentRepository.countByClassroomAndAcademicYear(c, currentYear)
+                            ? enrollmentRepository.countByClassroomAndAcademicYearAndSchool_Id(c, currentYear, getCurrentSchool.requireCurrentSchool().getId())
                             : 0;
                     return new SearchResultDTO(c.getId(), c.getName(), studentCount + " Students Enrolled", "Classroom", "/admin/classrooms");
                 })

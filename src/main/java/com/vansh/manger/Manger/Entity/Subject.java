@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Fetch;
 
 import java.util.Set;
 
@@ -35,6 +36,10 @@ public class Subject {
    @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
    @JsonInclude(JsonInclude.Include.NON_NULL)
    private Set<StudentSubjectMarks>studentSubjects;
+
+   @ManyToOne(fetch = FetchType.LAZY)
+   @JoinColumn(name = "school_id", nullable = false)
+   private School school;
 
    @OneToMany(mappedBy = "subject", cascade = CascadeType.PERSIST)
    @JsonIgnore

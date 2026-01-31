@@ -12,8 +12,8 @@ import java.util.List;
 public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> {
 
 
-    List<ActivityLog> findTop10ByOrderByCreatedAtDesc();
+    List<ActivityLog> findTop10BySchool_IdOrderByCreatedAtDesc(Long schoolId);
 
-    Page<ActivityLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Page<ActivityLog> findBySchool_IdOrderByCreatedAtDesc(Long schoolId, Pageable pageable);
 
 }

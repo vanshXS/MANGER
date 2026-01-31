@@ -6,6 +6,8 @@ import com.vansh.manger.Manger.DTO.DashboardKpiDTO;
 import com.vansh.manger.Manger.DTO.TeacherWorkloadDTO;
 import com.vansh.manger.Manger.Entity.*;
 import com.vansh.manger.Manger.Repository.*;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
+
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -28,22 +30,20 @@ public class AdminDashboardService {
     private final ActivityLogRepository activityLogRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final AcademicYearRepository academicYearRepository;
-    private final AdminServiceHelper adminServiceHelper;
+    private final AdminSchoolConfig getCurrentSchool;
 
     @Transactional
     public DashboardKpiDTO getKpis() {
-        School adminSchool = adminServiceHelper.getCurrentAdminSchool();
-
 
         long totalStudents = studentRepository.count();
         long activeTeachers = teacherRespository.count();
-        long unassignedTeacher = teacherRespository.findUnassignedTeachers().size();
+        long unassignedTeacher = teacherRespository.findUnassignedTeachersBySchool_Id(getCurrentSchool.requireCurrentSchool().getId()).size();
 
 
-        List<Classroom> classrooms = classroomRespository.findBySchoolAndStatus(adminSchool, ClassroomStatus.ACTIVE);
+        List<Classroom> classrooms = classroomRespository.findBySchoolAndStatus(getCurrentSchool.requireCurrentSchool(), ClassroomStatus.ACTIVE);
         int totalCapacity = classrooms.stream().mapToInt(Classroom::getCapacity).sum();
 
-        AcademicYear currentYear = academicYearRepository.findByIsCurrent(true)
+        AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId())
                 .orElseThrow(() -> new IllegalStateException("No active academic year found!"));
 
 
@@ -60,7 +60,7 @@ public class AdminDashboardService {
     }
 
     public List<ClassroomEnrollmentDTO> getEnrollmentOverview() {
-        Optional<AcademicYear> optionalYear = academicYearRepository.findByIsCurrent(true);
+        Optional<AcademicYear> optionalYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId());
 
         if (optionalYear.isEmpty()) {
             // ✅ Return empty list safely
@@ -69,9 +69,9 @@ public class AdminDashboardService {
 
         AcademicYear currentYear = optionalYear.get();
 
-        return classroomRespository.findAll().stream()
+        return classroomRespository.findBySchool_Id(getCurrentSchool.requireCurrentSchool().getId()).stream()
                 .map(classroom -> {
-                    long studentCount = enrollmentRepository.countByClassroomAndAcademicYear(classroom, currentYear);
+                    long studentCount = enrollmentRepository.countByClassroomAndAcademicYearAndSchool_Id(classroom, currentYear,getCurrentSchool.requireCurrentSchool().getId());
                     return new ClassroomEnrollmentDTO(
                             classroom.getName(),
                             classroom.getCapacity(),
@@ -82,7 +82,7 @@ public class AdminDashboardService {
     }
 
     public List<TeacherWorkloadDTO> getTeacherWorkload() {
-        return teacherRespository.findAll()
+        return teacherRespository.findBySchool_Id(getCurrentSchool.requireCurrentSchool().getId())
                 .stream()
                 .map(teacher -> new TeacherWorkloadDTO(
                         teacher.getFirstName() + " " + teacher.getLastName(),
@@ -92,7 +92,7 @@ public class AdminDashboardService {
     }
 
     public List<ActivityLogDTO> getRecentActivity() {
-        return activityLogRepository.findTop10ByOrderByCreatedAtDesc()
+        return activityLogRepository.findTop10BySchool_IdOrderByCreatedAtDesc(getCurrentSchool.requireCurrentSchool().getId())
                 .stream()
                 .map(this :: mapToDTO)
                 .collect(Collectors.toList());
@@ -100,7 +100,7 @@ public class AdminDashboardService {
 
     public Page<ActivityLogDTO> getAllActivityLogs(Pageable pageable) {
         return activityLogRepository
-                .findAllByOrderByCreatedAtDesc(pageable)
+                .findBySchool_IdOrderByCreatedAtDesc(getCurrentSchool.requireCurrentSchool().getId(), pageable)
                 .map(this::mapToDTO);
     }
 

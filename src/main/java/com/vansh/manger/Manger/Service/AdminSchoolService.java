@@ -41,7 +41,7 @@ public class AdminSchoolService {
             return ((User) principal).getId();
         }
 
-        if (principal instanceof String) {  // fallback for email string principal
+        if (principal instanceof String) {  
             String email = (String) principal;
             return userRepo.findByEmail(email)
                     .orElseThrow(() -> new EntityNotFoundException("User not found via email."))

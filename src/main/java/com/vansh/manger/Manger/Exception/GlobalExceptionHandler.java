@@ -1,6 +1,7 @@
 package com.vansh.manger.Manger.Exception;
 
 import com.vansh.manger.Manger.DTO.ErrorResponse;
+import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.JDBCException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +42,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(NullPointerException.class)
+    public ResponseEntity<ErrorResponse> handleNullPointerException(NullPointerException ex) {
+        String message = ex.getMessage() != null ? ex.getMessage() : "Null pointer exception";
+        return buildErrorResponse(message, HttpStatus.BAD_REQUEST);
+    }
+
     /* -------------------------------------------------
        2. Illegal Argument (Bad input / ID / params)
        ------------------------------------------------- */
@@ -52,7 +59,15 @@ public class GlobalExceptionHandler {
     }
 
     /* -------------------------------------------------
-       3. Username Not Found
+       3. Entity Not Found (JPA / resource not found)
+       ------------------------------------------------- */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEntityNotFoundException(EntityNotFoundException ex) {
+        return buildErrorResponse(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+    /* -------------------------------------------------
+       4. Username Not Found
        ------------------------------------------------- */
     @ExceptionHandler(UsernameNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleUsernameNotFoundException(
@@ -62,7 +77,7 @@ public class GlobalExceptionHandler {
     }
 
     /* -------------------------------------------------
-       4. IO Exceptions (File upload, streams, etc.)
+       5. IO Exceptions (File upload, streams, etc.)
        ------------------------------------------------- */
     @ExceptionHandler(IOException.class)
     public ResponseEntity<ErrorResponse> handleIOException(IOException ex) {

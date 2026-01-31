@@ -1,22 +1,23 @@
 package com.vansh.manger.Manger.Service;
 
 import com.vansh.manger.Manger.Config.RandomPasswordGenerator;
-import com.vansh.manger.Manger.DTO.AssignmentRequestDTO;
 import com.vansh.manger.Manger.DTO.TeacherAssignmentDTO;
 import com.vansh.manger.Manger.DTO.TeacherRequestDTO;
 import com.vansh.manger.Manger.DTO.TeacherResponseDTO;
 import com.vansh.manger.Manger.Entity.*;
 import com.vansh.manger.Manger.Repository.*;
+import com.vansh.manger.Manger.Specification.TeacherSpecification;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +36,7 @@ public class AdminTeacherService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final UserRepo userRepo;
+    private final AdminSchoolConfig adminSchoolConfig;
 
     // ✅ FIX: Proper injection
     private final ActivityLogService activityLogService;
@@ -75,38 +77,31 @@ public class AdminTeacherService {
     @Transactional
     public TeacherResponseDTO createTeacher(TeacherRequestDTO dto) {
 
-        if (teacherRespository.existsByEmail(dto.getEmail()))
+        if (teacherRespository.existsByEmailAndSchool_Id(dto.getEmail(), adminSchoolConfig.getOptionalCurrentSchool().getId()))
             throw new IllegalArgumentException("Teacher already exists with this email");
-
-
-
 
         String pictureUrl = saveProfilePicture(dto.getProfilePicture(), dto.getEmail());
         String rawPassword = generator.generateRandomPassword();
         String encodedPassword = passwordEncoder.encode(rawPassword);
 
 
-
-        String imageUrl = pictureUrl;
-
-        User adminUser = findCurrentUser();
-
         User teacherUser = User.builder()
                 .fullName(dto.getFirstName() + " " + dto.getLastName())
                 .email(dto.getEmail())
                 .password(encodedPassword)
                 .roles(Roles.TEACHER)
-                .school(adminUser.getSchool())
+                .school(adminSchoolConfig.requireCurrentSchool())
                 .build();
 
         Teacher teacher = Teacher.builder()
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
-                .phone_number(dto.getPhoneNumber())
+                .phoneNumber(dto.getPhoneNumber())
                 .password(encodedPassword)
                 .email(dto.getEmail())
                 .role(Roles.TEACHER)
-                .profilePictureUrl(imageUrl)
+                .school(adminSchoolConfig.requireCurrentSchool())
+                .profilePictureUrl(pictureUrl)
                 .user(teacherUser)
                 .build();
 
@@ -148,7 +143,7 @@ public class AdminTeacherService {
         teacher.setFirstName(dto.getFirstName());
         teacher.setLastName(dto.getLastName());
         teacher.setEmail(dto.getEmail());
-        teacher.setPhone_number(dto.getPhoneNumber());
+        teacher.setPhoneNumber(dto.getPhoneNumber());
 
         if (newPic != null) {
             teacher.setProfilePictureUrl(newPic);
@@ -171,15 +166,12 @@ public class AdminTeacherService {
     //----------------TOGGLE STATUS-----------------
 
     public void toggleStatus(Long teacherId, boolean active) {
-        Teacher teacher = teacherRespository.findById(teacherId)
-                .orElseThrow(() -> new EntityNotFoundException("Teacher not found"));
-
-
+        Teacher teacher = teacherRespository.findByIdAndSchool_Id(teacherId, adminSchoolConfig.requireCurrentSchool().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Teacher not found in the current admin school."));
 
         if(teacherAssignmentRepository.existsByTeacher(teacher)) {
             throw new IllegalStateException("Assigned Teacher cannot be deactive");
         }
-
 
          teacher.setActive(active);
          teacherRespository.save(teacher);
@@ -196,7 +188,7 @@ public class AdminTeacherService {
     @Transactional
     public void delete(Long teacherId) {
 
-        Teacher teacher = teacherRespository.findById(teacherId)
+        Teacher teacher = teacherRespository.findByIdAndSchool_Id(teacherId, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Teacher not found"));
 
        if(teacher.isActive()) {
@@ -205,24 +197,28 @@ public class AdminTeacherService {
            teacherRespository.delete(teacher);
        }
 
-
-
         activityLogService.logActivity(
-                "Teacher deleted: " + teacher.getFirstName() + " " + teacher.getLastName(),
-                "Teacher Management"
+                "Teacher deleted: " + teacher.getFirstName() + " " + teacher.getLastName(), "Teacher Management"
         );
     }
 
     // ---------------- FETCH ----------------
-    public List<TeacherResponseDTO> getAllTeachers() {
-        return teacherRespository.findAll()
-                .stream()
-                .map(this::mapToResponseWithAssignments)
-                .collect(Collectors.toList());
+
+    public Page<TeacherResponseDTO> getTeacherPage(
+            Boolean active,
+            String search,
+            Pageable pageable
+    ) {
+        School school = adminSchoolConfig.requireCurrentSchool();
+
+        Specification<Teacher> specification = TeacherSpecification.build(active, search, school.getId());
+
+        return teacherRespository.findAll(specification, pageable)
+                .map(this :: mapToResponseWithAssignments);
     }
 
     public TeacherResponseDTO getTeacherById(Long teacherId) {
-        Teacher teacher = teacherRespository.findById(teacherId)
+        Teacher teacher = teacherRespository.findByIdAndSchool_Id(teacherId, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new RuntimeException("Teacher not found."));
         return mapToResponseWithAssignments(teacher);
     }
@@ -248,7 +244,7 @@ public class AdminTeacherService {
                 .id(teacher.getId())
                 .firstName(teacher.getFirstName())
                 .lastName(teacher.getLastName())
-                .phoneNumber(teacher.getPhone_number())
+                .phoneNumber(teacher.getPhoneNumber())
                 .email(teacher.getEmail())
                 .profilePictureUrl(teacher.getProfilePictureUrl())
                 .active(teacher.isActive())
@@ -259,11 +255,4 @@ public class AdminTeacherService {
 
     }
 
-    //------------------------------helper method -----------------------------
-
-    private User findCurrentUser() {
-        return userRepo.findByEmail(
-                SecurityContextHolder.getContext().getAuthentication().getName()
-        ).orElseThrow(() -> new IllegalStateException("Admin not found"));
-    }
 }

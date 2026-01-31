@@ -35,4 +35,9 @@ public class TimeTable {
     @ManyToOne
     @JoinColumn(name = "teacher_assignment_id", nullable = false)
     private TeacherAssignment teacherAssignment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
 }

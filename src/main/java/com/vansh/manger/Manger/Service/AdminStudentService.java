@@ -5,14 +5,38 @@ import com.vansh.manger.Manger.DTO.ClassroomResponseDTO;
 import com.vansh.manger.Manger.DTO.StudentRequestDTO;
 import com.vansh.manger.Manger.DTO.StudentResponseDTO;
 import com.vansh.manger.Manger.DTO.SubjectResponseDTO;
-import com.vansh.manger.Manger.Entity.*;
-import com.vansh.manger.Manger.Repository.*;
+
+import com.vansh.manger.Manger.Entity.AcademicYear;
+import com.vansh.manger.Manger.Entity.Classroom;
+import com.vansh.manger.Manger.Entity.Enrollment;
+import com.vansh.manger.Manger.Entity.StudentStatus;
+import com.vansh.manger.Manger.Entity.Roles;
+import com.vansh.manger.Manger.Entity.School;
+import com.vansh.manger.Manger.Entity.Student;
+import com.vansh.manger.Manger.Entity.StudentSubjectEnrollment;
+import com.vansh.manger.Manger.Entity.Subject;
+import com.vansh.manger.Manger.Entity.TeacherAssignment;
+import com.vansh.manger.Manger.Entity.User;
+
+import com.vansh.manger.Manger.Repository.AcademicYearRepository;
+import com.vansh.manger.Manger.Repository.ClassroomRespository;
+import com.vansh.manger.Manger.Repository.ClassroomSubjectRepository;
+import com.vansh.manger.Manger.Repository.EnrollmentRepository;
+import com.vansh.manger.Manger.Repository.StudentRepository;
 import com.vansh.manger.Manger.Repository.StudentSubjectEnrollmentRepository;
+import com.vansh.manger.Manger.Repository.StudentSubjectMarksRepository;
+import com.vansh.manger.Manger.Repository.SubjectRepository;
+import com.vansh.manger.Manger.Repository.TeacherAssignmentRepository;
+import com.vansh.manger.Manger.Repository.UserRepo;
+import com.vansh.manger.Manger.Specification.StudentSpecification;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
+
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -37,6 +61,7 @@ public class AdminStudentService {
     private final AcademicYearRepository academicYearRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final UserRepo userRepo;
+    private final AdminSchoolConfig getCurrentSchool;
     private final StudentSubjectEnrollmentRepository studentSubjectEnrollmentRepository;
 
 
@@ -45,6 +70,7 @@ public class AdminStudentService {
     private final ActivityLogService activityLogService;
     private final EmailService emailService;
     private final FileStorageService fileStorageService;
+
     private final RandomPasswordGenerator randomPasswordGenerator = new RandomPasswordGenerator();
 
     private static final String UPLOAD_DIR =
@@ -59,16 +85,23 @@ public class AdminStudentService {
      */
     @Transactional
     public StudentResponseDTO createStudent(StudentRequestDTO studentRequestDTO) throws IOException {
+
+        School school = getCurrentSchool.requireCurrentSchool();
         // 1. Validation
-        if (studentRepository.existsByEmail(studentRequestDTO.getEmail())) {
+        if (studentRepository.existsByEmailAndSchool_Id(studentRequestDTO.getEmail(), school.getId())) {
             throw new IllegalArgumentException("Student with this email already registered");
         }
 
-        Classroom classroom = classroomRespository.findById(studentRequestDTO.getClassroomId())
-                .orElseThrow(() -> new EntityNotFoundException("Classroom not found"));
 
-        AcademicYear currentYear = academicYearRepository.findByIsCurrent(true)
+        Classroom classroom = classroomRespository.findByIdAndSchool(studentRequestDTO.getClassroomId(), school)
+                .orElseThrow(() -> new EntityNotFoundException("Classroom not found in this school: " + school.getName()));
+
+        AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId())
                 .orElseThrow(() -> new IllegalStateException("No active academic year is set! Cannot enroll student."));
+
+        if(currentYear.getIsCurrent()){
+            throw new IllegalStateException("Academic year is close. Please promote the student first.");
+        }
 
         // 2. File Upload
         String pictureUrl = null;
@@ -81,6 +114,8 @@ public class AdminStudentService {
 
         }
 
+
+
         // 3. Password & User Creation
         String rawPassword = randomPasswordGenerator.generateRandomPassword();
         String encodedPassword = passwordEncoder.encode(rawPassword);
@@ -90,7 +125,7 @@ public class AdminStudentService {
                 .email(studentRequestDTO.getEmail())
                 .password(encodedPassword)
                 .roles(Roles.STUDENT)
-                .school(classroom.getSchool())
+                .school(school)
                 .build();
 
 
@@ -104,8 +139,9 @@ public class AdminStudentService {
                 .firstName(studentRequestDTO.getFirstName())
                 .lastName(studentRequestDTO.getLastName())
                 .user(studentUser)
+                .school(school)
                 .email(studentRequestDTO.getEmail())
-                .password(encodedPassword) // This field is redundant if User has it
+                .password(encodedPassword)
                 .phoneNumber(studentRequestDTO.getPhoneNumber())
                 .profilePictureUrl(imageUrl).build();
 
@@ -120,7 +156,9 @@ public class AdminStudentService {
                 .student(savedStudent)
                 .classroom(classroom)
                 .academicYear(currentYear)
+                .status(StudentStatus.ACTIVE)
                 .rollNo(newRollNo)
+                .school(school)
                 .build();
 
         enrollmentRepository.save(firstEnrollment);
@@ -154,13 +192,15 @@ public class AdminStudentService {
      * Gets a paginated list of all students *and their current* enrollment details.
      */
     @Transactional
-    public Page<StudentResponseDTO> getAllStudents(Pageable pageable) {
-        Page<Student> studentPage = studentRepository.findAll(pageable);
+     public Page<StudentResponseDTO> getAllStudents(StudentStatus status, String search, Pageable pageable) {
+        School school = getCurrentSchool.requireCurrentSchool();
 
-        // Map each student in the page to their full DTO, including current enrollment
-        return studentPage.map(student -> {
-            Enrollment currentEnrollment = enrollmentRepository.findByStudentAndAcademicYearIsCurrent(student, true)
-                    .orElse(null); // Find their *current* enrollment
+        Specification<Student> spec = StudentSpecification.build(status, search, school.getId());
+
+        Page<Student> page = studentRepository.findAll(spec, pageable);
+
+        return page.map(student ->  {
+            Enrollment currentEnrollment = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true).orElse(null);
             return mapToStudentResponseDTO(student, currentEnrollment);
         });
     }
@@ -170,10 +210,13 @@ public class AdminStudentService {
      */
     @Transactional
     public StudentResponseDTO getStudentById(Long studentId) {
-        Student student = studentRepository.findById(studentId)
+
+        School school = getCurrentSchool.requireCurrentSchool();
+
+        Student student = studentRepository.findByIdAndSchool_Id(studentId, school.getId() )
                 .orElseThrow(() -> new EntityNotFoundException("Student not found"));
 
-        Enrollment currentEnrollment = enrollmentRepository.findByStudentAndAcademicYearIsCurrent(student, true)
+        Enrollment currentEnrollment = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true)
                 .orElse(null);
 
         return mapToStudentResponseDTO(student, currentEnrollment);
@@ -185,8 +228,10 @@ public class AdminStudentService {
      */
     @Transactional
     public StudentResponseDTO updateStudent(Long studentId, StudentRequestDTO studentRequestDTO) throws IOException {
-        Student existedStudent = studentRepository.findById(studentId)
-                .orElseThrow(() -> new EntityNotFoundException("Student not present"));
+        School school = getCurrentSchool.requireCurrentSchool();
+
+        Student existedStudent = studentRepository.findByIdAndSchool_Id(studentId, school.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Student not present in the existed school."));
 
         String newPic = existedStudent.getProfilePictureUrl();
         if (studentRequestDTO.getProfilePicture() != null && !studentRequestDTO.getProfilePicture().isEmpty()) {
@@ -198,11 +243,9 @@ public class AdminStudentService {
         }
 
         // Check for email conflict
-        studentRepository.findByEmail(studentRequestDTO.getEmail()).ifPresent(s -> {
+        studentRepository.findByEmailAndSchool_Id(studentRequestDTO.getEmail(), school.getId()).ifPresent(s -> {
             if (!s.getId().equals(studentId)) throw new IllegalArgumentException("This email is already taken.");
         });
-
-
 
         // Note: We don't update rollNo or classroomId here, as that's an enrollment change.
 
@@ -225,7 +268,7 @@ public class AdminStudentService {
         );
 
         // Find their current enrollment to send back the full DTO
-        Enrollment currentEnrollment = enrollmentRepository.findByStudentAndAcademicYearIsCurrent(updated, true)
+        Enrollment currentEnrollment = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(updated, getCurrentSchool.requireCurrentSchool().getId(),true)
                 .orElse(null);
 
         return mapToStudentResponseDTO(updated, currentEnrollment);
@@ -238,11 +281,13 @@ public class AdminStudentService {
      */
     @Transactional
     public StudentResponseDTO assignStudentToClassroom(Long studentId, Long newClassroomId) {
-        Student student = studentRepository.findById(studentId)
+        School adminSchool = getCurrentSchool.requireCurrentSchool();
+
+        Student student = studentRepository.findByIdAndSchool_Id(studentId, adminSchool.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Student not found"));
-        Classroom newClassroom = classroomRespository.findById(newClassroomId)
+        Classroom newClassroom = classroomRespository.findByIdAndSchool(newClassroomId, adminSchool)
                 .orElseThrow(() -> new EntityNotFoundException("Classroom not found"));
-        AcademicYear currentYear = academicYearRepository.findByIsCurrent(true)
+        AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId())
                 .orElseThrow(() -> new IllegalStateException("No active academic year is set!"));
 
         if(student.getUser().getSchool() == null || newClassroom.getSchool() == null) {
@@ -252,8 +297,12 @@ public class AdminStudentService {
             throw new IllegalArgumentException("Student and Classroom must be in the same school.");
         }
 
+
+
         // Find the student's *current* enrollment
-        Optional<Enrollment> existingEnrollmentOpt = enrollmentRepository.findByStudentAndAcademicYearIsCurrent(student, true);
+        Optional<Enrollment> existingEnrollmentOpt = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true);
+
+
 
         Enrollment enrollmentToSave;
         if (existingEnrollmentOpt.isPresent()) {
@@ -303,7 +352,7 @@ public class AdminStudentService {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new EntityNotFoundException("Student not found"));
 
-        Enrollment currentEnrollment = enrollmentRepository.findByStudentAndAcademicYearIsCurrent(student, true)
+        Enrollment currentEnrollment = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true)
                 .orElseThrow(() -> new EntityNotFoundException("Student is not currently enrolled in any class."));
 
         String classroomName = currentEnrollment.getClassroom().getName();
@@ -322,13 +371,22 @@ public class AdminStudentService {
      */
     @Transactional
     public void deleteById(Long studentId) {
-        Student student = studentRepository.findById(studentId)
+        School school = getCurrentSchool.requireCurrentSchool();
+        Student student = studentRepository.findByIdAndSchool_Id(studentId, school.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Student not found"));
 
-        User user = student.getUser(); // Get the associated User
+         Enrollment enrollment = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true)
+                 .orElseThrow(() -> new RuntimeException("Student has no active enrollment."));
+
+         if(enrollment.getStatus() != StudentStatus.INACTIVE) {
+             throw new IllegalStateException("Student must be INACTIVE before permanent deletion");
+         }
+
+
 
         // --- DATA INTEGRITY CASCADE ---
         // 1. Delete all subject assignments (electives)
+
         studentSubjectsRepository.deleteByStudentId(studentId);
         studentSubjectEnrollmentRepository.deleteByStudentId(studentId);
 
@@ -338,10 +396,7 @@ public class AdminStudentService {
         // 3. Delete the student
         studentRepository.delete(student);
 
-        // 4. Delete the associated User login
-        if (user != null) {
-            userRepo.delete(user);
-        }
+
 
         activityLogService.logActivity(
                 "Deleted student: " + student.getFirstName() + " " + student.getLastName(),
@@ -354,20 +409,46 @@ public class AdminStudentService {
      */
     @Transactional
     public List<StudentResponseDTO> getStudentsByClassroom(Long classroomId) {
-        Classroom classroom = classroomRespository.findById(classroomId)
+        School school = getCurrentSchool.requireCurrentSchool();
+        Classroom classroom = classroomRespository.findByIdAndSchool(classroomId, school)
                 .orElseThrow(() -> new EntityNotFoundException("Classroom not found"));
 
-        AcademicYear currentYear = academicYearRepository.findByIsCurrent(true)
+        AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId())
                 .orElseThrow(() -> new IllegalStateException("No active academic year is set!"));
 
-        List<Enrollment> enrollments = enrollmentRepository.findByClassroomAndAcademicYear(classroom, currentYear);
+        List<Enrollment> enrollments = enrollmentRepository.findByClassroomAndSchool_IdAndAcademicYear(classroom,getCurrentSchool.requireCurrentSchool().getId(), currentYear);
 
         return enrollments.stream()
                 .map(enrollment -> mapToStudentResponseDTO(enrollment.getStudent(), enrollment))
                 .toList();
     }
 
+    /**
+     * Update Enrollment Status
+     */
 
+    @Transactional
+      public void updateStatus(Long studentId, StudentStatus status) {
+
+        School school = getCurrentSchool.requireCurrentSchool();
+
+          Student student = studentRepository.findByIdAndSchool_Id(studentId, school.getId())
+                  .orElseThrow(() -> new EntityNotFoundException("Student not found."));
+
+           Enrollment enrollment = enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true)
+                   .orElseThrow(() -> new EntityNotFoundException("Student has no active enrollment"));
+
+           if(enrollment.getStatus() == status) return;
+
+           enrollment.setStatus(status);
+           enrollmentRepository.save(enrollment);
+
+           activityLogService.logActivity(
+                   "Student: " + student.getFirstName() + " status change to " + status,
+                   "Student Status Update"
+           );
+
+      }
 
 
     /**
@@ -383,7 +464,7 @@ public class AdminStudentService {
                 .orElseThrow(() -> new EntityNotFoundException("Subject not found"));
 
         Enrollment enrollment = enrollmentRepository
-                .findByStudentAndAcademicYearIsCurrent(student, true)
+                .findByStudentAndSchool_IdAndAcademicYearIsCurrent(student,getCurrentSchool.requireCurrentSchool().getId(), true)
                 .orElseThrow(() -> new IllegalStateException("Student not enrolled in any classroom"));
 
         Classroom classroom = enrollment.getClassroom();
@@ -423,7 +504,7 @@ public class AdminStudentService {
         );
 
         Enrollment currentEnrollment =
-                enrollmentRepository.findByStudentAndAcademicYearIsCurrent(student, true).orElse(null);
+                enrollmentRepository.findByStudentAndSchool_IdAndAcademicYearIsCurrent(student, getCurrentSchool.requireCurrentSchool().getId(), true).orElse(null);
 
         return mapToStudentResponseDTO(student, currentEnrollment);
     }
@@ -489,6 +570,7 @@ public class AdminStudentService {
      */
     @Transactional
     public List<SubjectResponseDTO> getSubjectsOfStudent(Long studentId) {
+        School school = getCurrentSchool.requireCurrentSchool();
 
         if (!studentRepository.existsById(studentId)) {
             throw new EntityNotFoundException("Student not found");
@@ -569,8 +651,8 @@ public class AdminStudentService {
      * This is the new, standout feature for auto-generating roll numbers.
      * e.g., "G10A-2024-001"
      */
-    private String generateNextRollNoForClass(Classroom classroom, AcademicYear year) {
-        long count = enrollmentRepository.countByClassroomAndAcademicYear(classroom, year);
+    public String generateNextRollNoForClass(Classroom classroom, AcademicYear year) {
+        long count = enrollmentRepository.countByClassroomAndAcademicYearAndSchool_Id(classroom, year, getCurrentSchool.requireCurrentSchool().getId());
         String nextId = String.format("%03d", count + 1); // "001", "002", etc.
 
         // Create a simple abbreviation for the class name
@@ -581,48 +663,9 @@ public class AdminStudentService {
         return classAbbreviation + "-" + yearAbbreviation + "-" + nextId;
     }
 
-    /**
-     * Helper method to save a file.
-     * Generates a unique filename based on a unique identifier (like email).
-     */
-    private String saveFile(MultipartFile file, String identifier) {
-        try {
-            if (file == null || file.isEmpty()) {
-                return null;
-            }
 
-            Path uploadPath = Paths.get(UPLOAD_DIR);
-            Files.createDirectories(uploadPath);
-
-            String originalFilename = file.getOriginalFilename();
-            String extension = "";
-
-            if (originalFilename != null && originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-            }
-
-            String uniqueFileName =
-                    identifier + "-" + System.currentTimeMillis() + extension;
-
-            Path filePath = uploadPath.resolve(uniqueFileName);
-            file.transferTo(filePath.toFile());
-
-            return "/uploads/students/" + uniqueFileName;
-
-        } catch (IOException ex) {
-            throw new IllegalStateException(
-                    "Failed to upload profile picture. Please try a smaller image.",
-                    ex
-            );
-        }
-    }
-
-
-    /**
-     * Secure helper to map a Student and their Enrollment (can be null) to the response DTO.
-     * This is the definitive mapper for all student responses.
-     */
     private StudentResponseDTO mapToStudentResponseDTO(Student student, Enrollment currentEnrollment) {
+
         StudentResponseDTO.StudentResponseDTOBuilder dtoBuilder = StudentResponseDTO.builder()
                 .id(student.getId())
                 .firstName(student.getFirstName())
@@ -631,36 +674,43 @@ public class AdminStudentService {
                 .phoneNumber(student.getPhoneNumber())
                 .profilePictureUrl(student.getProfilePictureUrl());
 
-        // Add current enrollment data if it exists
+        // ✅ ONLY access enrollment if it exists
         if (currentEnrollment != null) {
+            dtoBuilder.status(currentEnrollment.getStatus());
             dtoBuilder.currentEnrollmentId(currentEnrollment.getId());
             dtoBuilder.rollNo(currentEnrollment.getRollNo());
             dtoBuilder.academicYearName(currentEnrollment.getAcademicYear().getName());
 
-            // Map the enrolled classroom to its DTO
             dtoBuilder.classroomResponseDTO(
                     ClassroomResponseDTO.builder()
                             .id(currentEnrollment.getClassroom().getId())
                             .name(currentEnrollment.getClassroom().getName())
                             .capacity(currentEnrollment.getClassroom().getCapacity())
                             .status(currentEnrollment.getClassroom().getStatus())
-                            // Use efficient count here
-                            .studentCount(enrollmentRepository.countByClassroomAndAcademicYear(
-                                    currentEnrollment.getClassroom(), currentEnrollment.getAcademicYear()
-                            ))
+                            .studentCount(
+                                    enrollmentRepository.countByClassroomAndAcademicYearAndSchool_Id(
+                                            currentEnrollment.getClassroom(),
+                                            currentEnrollment.getAcademicYear(),
+                                            getCurrentSchool.requireCurrentSchool().getId()
+                                    )
+                            )
                             .build()
             );
+        } else {
+            // optional fallback
+            dtoBuilder.status(StudentStatus.INACTIVE); // or null if you prefer
         }
 
-        // Add elective subjects
-        List<StudentSubjectEnrollment> enrollments = studentSubjectEnrollmentRepository.findByStudentId(student.getId());
-        List<SubjectResponseDTO> subjectsDTOs =  enrollments.stream()
+        // subjects (this part is fine)
+        List<StudentSubjectEnrollment> enrollments =
+                studentSubjectEnrollmentRepository.findByStudentId(student.getId());
+
+        List<SubjectResponseDTO> subjectsDTOs = enrollments.stream()
                 .map(ss -> SubjectResponseDTO.builder()
                         .id(ss.getSubject().getId())
                         .name(ss.getSubject().getName())
                         .code(ss.getSubject().getCode())
                         .mandatory(ss.isMandatory())
-                        // assignmentCount is not needed here
                         .build())
                 .collect(Collectors.toList());
 
@@ -669,8 +719,9 @@ public class AdminStudentService {
         return dtoBuilder.build();
     }
 
+
     //helper method
-    private void autoAssignMandatorySubjects(Student student, Classroom classroom) {
+    public void autoAssignMandatorySubjects(Student student, Classroom classroom) {
 
         List<TeacherAssignment> mandatoryAssignments =
                 teacherAssignmentRepository.findByClassroomAndMandatoryTrue(classroom);

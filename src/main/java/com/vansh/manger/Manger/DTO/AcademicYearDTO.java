@@ -1,7 +1,6 @@
 package com.vansh.manger.Manger.DTO;
 
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.FutureOrPresent;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
@@ -23,5 +22,8 @@ public class AcademicYearDTO {
     @NotNull(message = "End date is required")
     private LocalDate endDate;
 
+    @JsonProperty("isCurrent")
     private boolean isCurrent; // Used for responses
+
+    private boolean closed; // Used for responses (year closed for promotion)
 }

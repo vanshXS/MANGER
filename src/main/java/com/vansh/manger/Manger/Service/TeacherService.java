@@ -7,6 +7,7 @@ import com.vansh.manger.Manger.Entity.Teacher;
 import com.vansh.manger.Manger.Entity.TeacherAssignment;
 import com.vansh.manger.Manger.Repository.TeacherAssignmentRepository;
 import com.vansh.manger.Manger.Repository.TeacherRespository;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,12 +20,13 @@ public class TeacherService {
 
     private final TeacherAssignmentRepository teacherAssignmentRepository;
     private final TeacherRespository teacherRespository;
+    private final AdminSchoolConfig adminSchoolConfig;
 
     //get my classes
 
     public List<ClassroomResponseDTO> getMyClasses(String email) {
 
-        Teacher teacher = teacherRespository.findByEmail(email).
+        Teacher teacher = teacherRespository.findByEmailAndSchool_Id(email, adminSchoolConfig.requireCurrentSchool().getId()).
                 orElseThrow(() -> new RuntimeException("Teacher not found"));
 
 
@@ -39,7 +41,7 @@ public class TeacherService {
     }
 
     public List<SubjectResponseDTO> getMySubject(String email) {
-        Teacher teacher = teacherRespository.findByEmail(email)
+        Teacher teacher = teacherRespository.findByEmailAndSchool_Id(email, adminSchoolConfig.requireCurrentSchool().getId())
                 .orElseThrow(() -> new RuntimeException("Teacher not found"));
 
         return teacherAssignmentRepository.findByTeacher(teacher)

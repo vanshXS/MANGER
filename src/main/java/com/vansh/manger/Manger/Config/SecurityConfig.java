@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/files/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/schools/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/teacher/**").hasAuthority("ROLE_TEACHER")
                         .requestMatchers("/api/student/**").hasAuthority("ROLE_STUDENT")

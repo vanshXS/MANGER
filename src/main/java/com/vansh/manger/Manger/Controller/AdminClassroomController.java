@@ -6,8 +6,11 @@ import com.vansh.manger.Manger.Entity.ClassroomStatus;
 import com.vansh.manger.Manger.Entity.Subject;
 import com.vansh.manger.Manger.Service.AdminClassroomService;
 // Removed jakarta.persistence.EntityNotFoundException as it should be handled by global handler
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +23,7 @@ import java.util.List;
 public class AdminClassroomController {
 
     private final AdminClassroomService adminClassroomService;
+    private final AdminSchoolConfig getCurrentSchool;
 
     // --- CREATE ---
     @PostMapping
@@ -46,7 +50,7 @@ public class AdminClassroomController {
     @GetMapping("/{id:\\d+}")
     public ResponseEntity<ClassroomResponseDTO> getClassroomById(@PathVariable("id") Long id) {
         // EntityNotFoundException will be handled globally (e.g., return 404)
-        return ResponseEntity.ok(adminClassroomService.getClassroomById(id));
+        return ResponseEntity.ok(adminClassroomService.getClassroomById(id,getCurrentSchool.requireCurrentSchool().getId() ));
     }
 
     // --- UPDATE ---

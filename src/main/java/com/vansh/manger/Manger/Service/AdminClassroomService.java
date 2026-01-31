@@ -5,6 +5,8 @@ import com.vansh.manger.Manger.DTO.ClassroomResponseDTO;
 import com.vansh.manger.Manger.DTO.StudentResponseDTO;
 import com.vansh.manger.Manger.Entity.*;
 import com.vansh.manger.Manger.Repository.*;
+import com.vansh.manger.Manger.util.AdminSchoolConfig;
+
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,23 +22,25 @@ public class AdminClassroomService {
 
     private final ClassroomRespository classroomRespository;
     private final TeacherAssignmentRepository teacherAssignmentRepository;
-    private final StudentRepository studentRepository;
-    private final ModelMapper modelMapper;
+
+
     private final AcademicYearRepository academicYearRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final SchoolRepository schoolRepository;
-    private final UserRepo userRepo;
-    private final AdminServiceHelper adminServiceHelper;
+
+    private final AdminSchoolConfig getCurrentSchool;
 
 
    public ClassroomResponseDTO mapToResponse(Classroom classroom) {
 
-       AcademicYear currentYear = academicYearRepository.findByIsCurrent(true)
+
+
+
+       AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId())
                .orElse(null);
        long studentCount = 0;
 
        if(currentYear!= null) {
-           studentCount = enrollmentRepository.countByClassroomAndAcademicYear(classroom, currentYear);
+           studentCount = enrollmentRepository.countByClassroomAndAcademicYearAndSchool_Id(classroom, currentYear, getCurrentSchool.requireCurrentSchool().getId());
        }
 
        return ClassroomResponseDTO.builder()
@@ -51,7 +55,7 @@ public class AdminClassroomService {
    @Transactional
        public ClassroomResponseDTO createClassroom(ClassroomRequestDTO classroomRequestDTO) {
 
-        School adminSchool = adminServiceHelper.getCurrentAdminSchool();
+        School adminSchool = getCurrentSchool.requireCurrentSchool();
 
          if(classroomRespository.existsByNameAndSchool(classroomRequestDTO.getName(), adminSchool)) {
              throw new IllegalArgumentException("Classroom with this name already exists");
@@ -74,7 +78,7 @@ public class AdminClassroomService {
        @Transactional
        public ClassroomResponseDTO updateClassroom(Long id, ClassroomRequestDTO classroomRequestDTO) {
 
-       School adminSchool = adminServiceHelper.getCurrentAdminSchool();
+       School adminSchool = getCurrentSchool.requireCurrentSchool();
            Classroom classroom = classroomRespository.findById(id)
                    .orElseThrow(() -> new EntityNotFoundException("Classroom not found"));
            // Optional: Check if the new name conflicts with another existing classroom
@@ -109,14 +113,14 @@ public class AdminClassroomService {
        }
 
        public List<ClassroomResponseDTO> getAllActiveClassrooms() {
-       return classroomRespository.findBySchoolAndStatus(adminServiceHelper.getCurrentAdminSchool(), ClassroomStatus.ACTIVE)
+       return classroomRespository.findBySchoolAndStatus(getCurrentSchool.requireCurrentSchool(), ClassroomStatus.ACTIVE)
                .stream()
                .map(this::mapToResponse)
                .collect(Collectors.toList());
        }
 
        public List<ClassroomResponseDTO> getClassroomsByStatus(ClassroomStatus status) {
-                return classroomRespository.findBySchoolAndStatus(adminServiceHelper.getCurrentAdminSchool(), status)
+                return classroomRespository.findBySchoolAndStatus(getCurrentSchool.requireCurrentSchool(), status)
                         .stream()
                         .map(this::mapToResponse)
                         .toList();
@@ -128,13 +132,14 @@ public class AdminClassroomService {
            Classroom classroom = classroomRespository.findById(id)
                    .orElseThrow(() -> new EntityNotFoundException("Classroom not found with this id: " + id));
 
+
            // --- FIXED BUSINESS LOGIC ---
            // Check for students enrolled *in the current academic year*.
            if (newStatus == ClassroomStatus.ARCHIVED) {
-               AcademicYear currentYear = academicYearRepository.findByIsCurrent(true)
+               AcademicYear currentYear = academicYearRepository.findByIsCurrentAndSchool_Id(true, getCurrentSchool.requireCurrentSchool().getId())
                        .orElse(null); // Be null-safe
 
-               if (currentYear != null && enrollmentRepository.countByClassroomAndAcademicYear(classroom, currentYear) > 0) {
+               if (currentYear != null && enrollmentRepository.countByClassroomAndAcademicYearAndSchool_Id(classroom, currentYear, getCurrentSchool.requireCurrentSchool().getId()) > 0) {
                    throw new IllegalStateException("Cannot archive a classroom with students currently enrolled. Please transfer students first.");
                }
            }
@@ -142,14 +147,10 @@ public class AdminClassroomService {
            Classroom updatedClassroom = classroomRespository.save(classroom);
            return mapToResponse(updatedClassroom);
        }
-       public List<ClassroomResponseDTO> getAllClassrooms() {
-         return classroomRespository.findAll()
-                 .stream()
-                 .map(this :: mapToResponse)
-                 .toList();
-       }
-       public ClassroomResponseDTO getClassroomById(Long id) {
-         Classroom classroom = classroomRespository.findById(id)
+
+
+       public ClassroomResponseDTO getClassroomById(Long id, Long schoolId) {
+         Classroom classroom = classroomRespository.findByIdAndSchool(id, getCurrentSchool.requireCurrentSchool())
                  .orElseThrow(() -> new EntityNotFoundException("Classroom not founded"));
 
            return mapToResponse(classroom);

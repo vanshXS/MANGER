@@ -1,6 +1,8 @@
 package com.vansh.manger.Manger.Controller;
 
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -16,9 +18,9 @@ import java.nio.file.Paths;
 
 @RestController
 @RequestMapping("/api/files")
-
 public class FileController {
 
+    private static final Logger log = LoggerFactory.getLogger(FileController.class);
     private static final String BASE_DIR = System.getProperty("user.home") + "/manger/uploads/";
 
     @GetMapping("/students/{filename:.+}")
@@ -41,36 +43,17 @@ public class FileController {
      */
     private ResponseEntity<Resource> serveFile(String directory, String filename) {
         try {
-            System.out.println("=== FILE REQUEST ===");
-            System.out.println("📁 Directory: " + directory);
-            System.out.println("📄 Filename: " + filename);
-
+            log.debug("File request: directory={}, filename={}", directory, filename);
             Path filePath = Paths.get(BASE_DIR, directory, filename);
-            System.out.println("🔍 Full path: " + filePath.toAbsolutePath());
 
             Resource resource = new UrlResource(filePath.toUri());
 
             if (!resource.exists() || !resource.isReadable()) {
-                System.err.println("❌ File not found or not readable: " + filePath);
-
-                // List files in directory for debugging
-                File dir = Paths.get(BASE_DIR, directory).toFile();
-                if (dir.exists() && dir.isDirectory()) {
-                    System.out.println("📋 Available files in " + directory + ":");
-                    File[] files = dir.listFiles();
-                    if (files != null) {
-                        for (File f : files) {
-                            System.out.println("   - " + f.getName());
-                        }
-                    }
-                }
-
+                log.warn("File not found or not readable: {}", filePath.toAbsolutePath());
                 return ResponseEntity.notFound().build();
             }
 
             String contentType = determineContentType(filename);
-            System.out.println("✅ Serving file with content type: " + contentType);
-
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
                     .header(HttpHeaders.CACHE_CONTROL, "max-age=86400")
@@ -78,8 +61,7 @@ public class FileController {
                     .body(resource);
 
         } catch (Exception e) {
-            System.err.println("❌ Error serving file: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error serving file: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -112,13 +94,10 @@ public class FileController {
             Files.createDirectories(studentsPath);
             Files.createDirectories(teachersPath);
             Files.createDirectories(logosPath);
-
-            System.out.println("✅ Upload directories verified:");
-            System.out.println("   Students: " + studentsPath.toAbsolutePath());
-            System.out.println("   Teachers: " + teachersPath.toAbsolutePath());
-            System.out.println("   Logos: " + logosPath.toAbsolutePath());
+            log.info("Upload directories verified: students={}, teachers={}, logos={}",
+                    studentsPath.toAbsolutePath(), teachersPath.toAbsolutePath(), logosPath.toAbsolutePath());
         } catch (Exception e) {
-            System.err.println("❌ Failed to create upload directories: " + e.getMessage());
+            log.error("Failed to create upload directories: {}", e.getMessage());
         }
     }
 

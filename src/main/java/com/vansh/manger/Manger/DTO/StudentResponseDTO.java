@@ -1,6 +1,7 @@
 package com.vansh.manger.Manger.DTO;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.vansh.manger.Manger.Entity.StudentStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -34,7 +35,9 @@ public class StudentResponseDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private ClassroomResponseDTO classroomResponseDTO; // Their current classroom
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private String academicYearName; // e.g., "2024-2025"
+    private String academicYearName;
+
+    private StudentStatus status;// e.g., "2024-2025"
 
     // --- Academic Details ---
     private List<SubjectResponseDTO> subjectResponseDTOS; // Their individually assigned subjects

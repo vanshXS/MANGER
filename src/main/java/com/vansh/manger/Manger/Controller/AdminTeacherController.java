@@ -8,6 +8,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.apache.coyote.Response;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -34,12 +38,21 @@ public class AdminTeacherController {
        return new ResponseEntity<>(teacher, HttpStatus.CREATED);
    }
 
-   @GetMapping
-    public ResponseEntity<List<TeacherResponseDTO>> getAllTeachers() {
-       List<TeacherResponseDTO> teachers = adminTeacherService.getAllTeachers();
+  @GetMapping
+  public ResponseEntity<Page<TeacherResponseDTO>> getTeachers(
+          @RequestParam(required = false) Boolean active,
+          @RequestParam(required = false) String search,
+          @PageableDefault(
+                  size = 10,
+                  sort = "id",
+                  direction = Sort.Direction.DESC
+          ) Pageable pageable
+  ) {
 
-       return new ResponseEntity<>(teachers, HttpStatus.OK);
-   }
+       return ResponseEntity.ok(
+               adminTeacherService.getTeacherPage(active, search, pageable)
+       );
+  }
 
    @GetMapping("/{teacherId:\\d+}")
     public ResponseEntity<?> getTeacherById(@PathVariable Long teacherId) {
@@ -52,7 +65,7 @@ public class AdminTeacherController {
            @PathVariable Long teacherId,
            @RequestParam boolean active
    ) {
-       System.out.println("It is executed");
+
        adminTeacherService.toggleStatus(teacherId, active);
        return ResponseEntity.ok().build();
    }
